@@ -18,10 +18,6 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
-    # Security: read-only root filesystem where possible
-    tmpfs:
-      - /tmp
-      - /run
 
   # ---- Backend API ----
   backend:
@@ -37,17 +33,11 @@ services:
       DB_HOST: db
       DB_PORT: "5432"
       DB_NAME: jerney_db
-    expose:
-      - "5000"
+    ports:
+      - "5000:5000"
     depends_on:
       db:
         condition: service_healthy
-    # Security: do not run as root (already in Dockerfile, but enforced here too)
-    security_opt:
-      - no-new-privileges:true
-    read_only: true
-    tmpfs:
-      - /tmp
 
   # ---- Frontend (Nginx + React) ----
   frontend:
@@ -60,9 +50,6 @@ services:
       - "3000:8080"
     depends_on:
       - backend
-    security_opt:
-      - no-new-privileges:true
 
 volumes:
   pgdata:
-    driver: local
