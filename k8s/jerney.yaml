@@ -13,12 +13,6 @@ metadata:
 
 ---
 # ---- Database Secret ----
-# In production, use External Secrets Operator or Sealed Secrets.
-# This is base64 encoded for demo purposes.
-# echo -n 'jerney_user' | base64 → amVybmV5X3VzZXI=
-# echo -n 'jerney_pass_2026' | base64 → amVybmV5X3Bhc3NfMjAyNg==
-# echo -n 'jerney_db' | base64 → amVybmV5X2Ri
-
 apiVersion: v1
 kind: Secret
 metadata:
@@ -78,7 +72,7 @@ metadata:
 spec:
   replicas: 1
   strategy:
-    type: Recreate # Required for RWO volumes
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: jerney-db
@@ -89,7 +83,6 @@ spec:
         app.kubernetes.io/part-of: jerney
         app.kubernetes.io/component: database
     spec:
-      # Security: don't automount service account token (DB doesn't need K8s API)
       automountServiceAccountToken: false
       tolerations:
         - key: "karpenter.sh/disrupted"
@@ -115,11 +108,10 @@ spec:
             limits:
               cpu: 500m
               memory: 512Mi
-          # Security context
           securityContext:
             allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: false # Postgres needs write access
-            runAsNonRoot: false            # Postgres image runs initdb as root then drops
+            readOnlyRootFilesystem: false
+            runAsNonRoot: false
           livenessProbe:
             exec:
               command: ["pg_isready", "-U", "jerney_user", "-d", "jerney_db"]
@@ -138,7 +130,7 @@ spec:
             claimName: jerney-db-pvc
 
 ---
-# ---- PostgreSQL Service (ClusterIP — internal only) ----
+# ---- PostgreSQL Service ----
 apiVersion: v1
 kind: Service
 metadata:
@@ -200,7 +192,7 @@ spec:
               echo "DB is ready!"
       containers:
         - name: backend
-          image: ghcr.io/iam-veeramalla/Jerney/jerney-backend:75da1da
+          image: ka07/pipeline-backend:latest        # ← updated
           ports:
             - containerPort: 5000
               protocol: TCP
@@ -233,7 +225,6 @@ spec:
             limits:
               cpu: 300m
               memory: 256Mi
-          # Security context
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -258,7 +249,7 @@ spec:
             timeoutSeconds: 3
 
 ---
-# ---- Backend Service (ClusterIP — internal only) ----
+# ---- Backend Service ----
 apiVersion: v1
 kind: Service
 metadata:
@@ -307,7 +298,7 @@ spec:
           effect: "NoSchedule"
       containers:
         - name: frontend
-          image: ghcr.io/iam-veeramalla/Jerney/jerney-frontend:75da1da
+          image: kavyan07/pipeline-frontend:latest   # ← updated
           ports:
             - containerPort: 8080
               protocol: TCP
@@ -320,9 +311,9 @@ spec:
               memory: 128Mi
           securityContext:
             allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: false # Nginx needs write for cache/pid
+            readOnlyRootFilesystem: false
             runAsNonRoot: true
-            runAsUser: 101 # nginx user UID in alpine
+            runAsUser: 101
             capabilities:
               drop:
                 - ALL
@@ -340,10 +331,7 @@ spec:
             periodSeconds: 5
 
 ---
-# ---- Frontend Service (NodePort — for access via port-forward or node IP) ----
-# NOTE: Changed from LoadBalancer because this AWS account does not support
-# creating load balancers. Use `kubectl port-forward svc/jerney-frontend 8080:80 -n jerney`
-# to access the frontend locally.
+# ---- Frontend Service ----
 apiVersion: v1
 kind: Service
 metadata:
@@ -405,4 +393,3 @@ spec:
       ports:
         - port: 5000
           protocol: TCP
-          
